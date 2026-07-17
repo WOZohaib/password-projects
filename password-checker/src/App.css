@@ -1,5 +1,7 @@
 /* App.css */
 
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f8fafc;
@@ -701,5 +703,225 @@ button:disabled {
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Typography refresh + generator controls */
+
+:root {
+  font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+.password-wrapper input,
+.metric-card strong,
+.score-pill,
+.generator-panel-heading > span,
+.input-meta-row {
+  font-variant-numeric: tabular-nums;
+}
+
+.password-wrapper input {
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+
+h2 {
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.subtitle {
+  font-weight: 500;
+}
+
+.input-meta-row {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.caps-lock-warning {
+  color: #fbbf24;
+}
+
+.password-actions .secondary-button.active {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(37, 99, 235, 0.16);
+  color: #dbeafe;
+}
+
+.generator-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.07), transparent 48%),
+    rgba(15, 23, 42, 0.58);
+  animation: panel-in 0.2s ease-out;
+}
+
+.generator-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.generator-panel-heading h2 {
+  font-size: 18px;
+}
+
+.generator-panel-heading > span {
+  color: #bfdbfe;
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.length-control {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.length-control input[type="range"] {
+  width: 100%;
+  accent-color: #60a5fa;
+  cursor: pointer;
+}
+
+.generator-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.generator-option {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.48);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.generator-option:hover {
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.generator-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #3b82f6;
+}
+
+.generator-option span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.generator-option strong {
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.generator-option small {
+  color: #64748b;
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.wide-option {
+  grid-column: 1 / -1;
+}
+
+.wide-option span {
+  display: block;
+}
+
+.wide-option small {
+  display: block;
+  margin-top: 3px;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.generate-now-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 520px) {
+  .generator-options {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-option {
+    grid-column: auto;
+  }
+
+  .password-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .password-actions button:first-child,
+  .password-actions button:nth-child(2) {
+    grid-column: 1 / -1;
   }
 }

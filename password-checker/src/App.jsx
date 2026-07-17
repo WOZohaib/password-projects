@@ -7,6 +7,8 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  SlidersHorizontal,
+  Sparkles,
   ShieldCheck,
   ShieldAlert,
   Trash2,
@@ -30,6 +32,15 @@ const COMMON_PATTERNS = [
   'welcome',
   'admin',
   'abc123',
+  'iloveyou',
+  'monkey',
+  'dragon',
+  'football',
+  'baseball',
+  'login',
+  'master',
+  'princess',
+  'sunshine',
 ];
 
 const CHARACTER_GROUPS = {
@@ -39,17 +50,75 @@ const CHARACTER_GROUPS = {
   symbols: '!@#$%^&*()-_=+[]{};:,.?',
 };
 
-const getScore = (password) => {
-  let score = 0;
-
-  if (password.length >= 8) score += 1;
-  if (/[A-Z]/.test(password)) score += 1;
-  if (/[a-z]/.test(password)) score += 1;
-  if (/\d/.test(password)) score += 1;
-  if (/[\W_]/.test(password)) score += 1;
-
-  return score;
+const LEET_REPLACEMENTS = {
+  '0': 'o',
+  '1': 'i',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '7': 't',
+  '@': 'a',
+  '$': 's',
+  '!': 'i',
 };
+
+const normalizePredictableText = (password) =>
+  password
+    .toLowerCase()
+    .split('')
+    .map((character) => LEET_REPLACEMENTS[character] ?? character)
+    .join('');
+
+const hasRepeatedCharacters = (password) => /(.)\1{2,}/.test(password);
+
+const getRepeatedChunkPenalty = (password) => {
+  const normalized = password.toLowerCase();
+
+  for (
+    let chunkLength = 1;
+    chunkLength <= Math.floor(normalized.length / 2);
+    chunkLength += 1
+  ) {
+    const chunk = normalized.slice(0, chunkLength);
+
+    if (
+      normalized.length % chunkLength === 0 &&
+      chunk.repeat(normalized.length / chunkLength) === normalized
+    ) {
+      return Math.min(28, 10 + normalized.length);
+    }
+  }
+
+  return 0;
+};
+
+const hasSequentialPattern = (password) => {
+  const normalized = password.toLowerCase();
+  const sequences = [
+    '0123456789',
+    '9876543210',
+    'abcdefghijklmnopqrstuvwxyz',
+    'zyxwvutsrqponmlkjihgfedcba',
+    'qwertyuiop',
+    'poiuytrewq',
+    'asdfghjkl',
+    'lkjhgfdsa',
+    'zxcvbnm',
+    'mnbvcxz',
+  ];
+
+  return sequences.some((sequence) => {
+    for (let i = 0; i <= sequence.length - 3; i += 1) {
+      if (normalized.includes(sequence.slice(i, i + 3))) return true;
+    }
+
+    return false;
+  });
+};
+
+const hasDatePattern = (password) =>
+  /(?:19|20)\d{2}/.test(password) ||
+  /(?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])/.test(password);
 
 const getCharacterPoolSize = (password) => {
   let poolSize = 0;
@@ -60,15 +129,6 @@ const getCharacterPoolSize = (password) => {
   if (/[\W_]/.test(password)) poolSize += 33;
 
   return poolSize;
-};
-
-const estimateEntropy = (password) => {
-  if (!password) return 0;
-
-  const poolSize = getCharacterPoolSize(password);
-  if (!poolSize) return 0;
-
-  return Math.round(password.length * Math.log2(poolSize));
 };
 
 const formatDuration = (seconds) => {
@@ -88,32 +148,95 @@ const formatDuration = (seconds) => {
 const estimateCrackTime = (entropy) => {
   if (!entropy) return 'Instantly';
 
-  // Approximation assuming 10 billion guesses per second.
+  // Approximation assuming 10 billion offline guesses per second.
   const guesses = 2 ** entropy;
   const seconds = guesses / 10_000_000_000;
 
   return formatDuration(seconds);
 };
 
-const hasRepeatedCharacters = (password) => /(.)\1{2,}/.test(password);
+const analyzePassword = (password) => {
+  if (!password) {
+    return {
+      score: 0,
+      level: 0,
+      entropy: 0,
+      crackTime: 'Instantly',
+    };
+  }
 
-const hasSequentialPattern = (password) => {
-  const normalized = password.toLowerCase();
-  const sequences = [
-    '0123456789',
-    '9876543210',
-    'abcdefghijklmnopqrstuvwxyz',
-    'zyxwvutsrqponmlkjihgfedcba',
-    'qwertyuiop',
-    'poiuytrewq',
-  ];
+  const length = password.length;
+  const normalized = normalizePredictableText(password);
+  const uniqueRatio = new Set(password).size / length;
+  const categoryCount = [
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /\d/.test(password),
+    /[\W_]/.test(password),
+  ].filter(Boolean).length;
 
-  return sequences.some((sequence) => {
-    for (let i = 0; i <= sequence.length - 4; i += 1) {
-      if (normalized.includes(sequence.slice(i, i + 4))) return true;
-    }
-    return false;
-  });
+  const rawEntropy =
+    length * Math.log2(Math.max(getCharacterPoolSize(password), 1));
+
+  let score = Math.min(52, length * 3.25);
+  score += categoryCount * 7;
+  score += Math.min(10, uniqueRatio * 12);
+
+  if (length >= 16) score += 6;
+  if (length >= 20) score += 5;
+  if (length >= 24) score += 4;
+
+  let penalty = 0;
+
+  if (length < 8) penalty += 32;
+  else if (length < 12) penalty += 14;
+
+  if (categoryCount === 1) penalty += 16;
+  else if (categoryCount === 2) penalty += 7;
+
+  if (uniqueRatio < 0.45) penalty += 18;
+  else if (uniqueRatio < 0.65) penalty += 8;
+
+  if (hasRepeatedCharacters(password)) penalty += 12;
+  penalty += getRepeatedChunkPenalty(password);
+
+  if (hasSequentialPattern(password)) penalty += 18;
+  if (hasDatePattern(password)) penalty += 10;
+
+  if (COMMON_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    penalty += 35;
+  }
+
+  if (/^[A-Z][a-z]+\d{1,4}[!@#$%^&*]?$/.test(password)) {
+    penalty += 16;
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score - penalty)));
+
+  const effectiveEntropy = Math.max(
+    0,
+    Math.round(rawEntropy - penalty * 1.35 - (1 - uniqueRatio) * 22)
+  );
+
+  const level =
+    score >= 90
+      ? 5
+      : score >= 75
+        ? 4
+        : score >= 55
+          ? 3
+          : score >= 35
+            ? 2
+            : score >= 18
+              ? 1
+              : 0;
+
+  return {
+    score,
+    level,
+    entropy: effectiveEntropy,
+    crackTime: estimateCrackTime(effectiveEntropy),
+  };
 };
 
 const getFeedback = (password) => {
@@ -149,8 +272,22 @@ const getFeedback = (password) => {
     feedback.push('Avoid keyboard and alphabetical sequences.');
   }
 
-  if (COMMON_PATTERNS.some((pattern) => password.toLowerCase().includes(pattern))) {
-    feedback.push('Avoid common words and password patterns.');
+  const normalized = normalizePredictableText(password);
+
+  if (COMMON_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    feedback.push('Avoid common words, even with substitutions like @ for a.');
+  }
+
+  if (getRepeatedChunkPenalty(password) > 0) {
+    feedback.push('Avoid repeating the same word or character block.');
+  }
+
+  if (hasDatePattern(password)) {
+    feedback.push('Avoid years, birthdays, and other recognizable dates.');
+  }
+
+  if (/^[A-Z][a-z]+\d{1,4}[!@#$%^&*]?$/.test(password)) {
+    feedback.push('Avoid the predictable Word123! format.');
   }
 
   if (feedback.length === 0) {
@@ -176,33 +313,50 @@ const buildChecklist = (password) => [
   },
 ];
 
-const generatePassword = (length = 18) => {
-  const groups = Object.values(CHARACTER_GROUPS);
-  const allCharacters = groups.join('');
+const AMBIGUOUS_CHARACTERS = new Set(['0', 'O', 'o', '1', 'I', 'l', '|']);
 
-  const requiredCharacters = groups.map((group) => {
-    const index = crypto.getRandomValues(new Uint32Array(1))[0] % group.length;
-    return group[index];
-  });
+const getRandomCharacter = (characters) => {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return characters[values[0] % characters.length];
+};
+
+const generatePassword = ({
+  length = 18,
+  lowercase = true,
+  uppercase = true,
+  numbers = true,
+  symbols = true,
+  avoidAmbiguous = true,
+} = {}) => {
+  const enabledGroups = [
+    lowercase && CHARACTER_GROUPS.lowercase,
+    uppercase && CHARACTER_GROUPS.uppercase,
+    numbers && CHARACTER_GROUPS.numbers,
+    symbols && CHARACTER_GROUPS.symbols,
+  ].filter(Boolean);
+
+  if (enabledGroups.length === 0) return '';
+
+  const cleanGroup = (group) =>
+    avoidAmbiguous
+      ? [...group].filter((character) => !AMBIGUOUS_CHARACTERS.has(character)).join('')
+      : group;
+
+  const groups = enabledGroups.map(cleanGroup).filter(Boolean);
+  const allCharacters = groups.join('');
+  const requiredCharacters = groups.map(getRandomCharacter);
 
   const remainingCharacters = Array.from(
     { length: Math.max(length - requiredCharacters.length, 0) },
-    () => {
-      const index =
-        crypto.getRandomValues(new Uint32Array(1))[0] % allCharacters.length;
-      return allCharacters[index];
-    }
+    () => getRandomCharacter(allCharacters)
   );
 
   const combined = [...requiredCharacters, ...remainingCharacters];
 
   for (let i = combined.length - 1; i > 0; i -= 1) {
-    const randomIndex =
-      crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
-    [combined[i], combined[randomIndex]] = [
-      combined[randomIndex],
-      combined[i],
-    ];
+    const randomIndex = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [combined[i], combined[randomIndex]] = [combined[randomIndex], combined[i]];
   }
 
   return combined.join('');
@@ -214,13 +368,29 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isCheckingBreach, setIsCheckingBreach] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showGeneratorSettings, setShowGeneratorSettings] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  const [generatorSettings, setGeneratorSettings] = useState({
+    length: 18,
+    lowercase: true,
+    uppercase: true,
+    numbers: true,
+    symbols: true,
+    avoidAmbiguous: true,
+  });
 
-  const score = useMemo(() => getScore(password), [password]);
-  const strength = STRENGTH_LEVELS[score];
-  const entropy = useMemo(() => estimateEntropy(password), [password]);
-  const crackTime = useMemo(() => estimateCrackTime(entropy), [entropy]);
+  const analysis = useMemo(() => analyzePassword(password), [password]);
+  const { score, level, entropy, crackTime } = analysis;
+  const strength = STRENGTH_LEVELS[level];
   const feedback = useMemo(() => getFeedback(password), [password]);
   const checklist = useMemo(() => buildChecklist(password), [password]);
+  const uniqueCharacters = useMemo(() => new Set(password).size, [password]);
+  const enabledGeneratorGroups = [
+    generatorSettings.lowercase,
+    generatorSettings.uppercase,
+    generatorSettings.numbers,
+    generatorSettings.symbols,
+  ].filter(Boolean).length;
 
   const handlePasswordChange = (event) => {
     setPassword(event.target.value);
@@ -229,9 +399,18 @@ function App() {
   };
 
   const handleGeneratePassword = () => {
-    setPassword(generatePassword());
+    setPassword(generatePassword(generatorSettings));
     setBreachCount(null);
     setCopied(false);
+  };
+
+
+  const updateGeneratorSetting = (setting, value) => {
+    setGeneratorSettings((current) => ({ ...current, [setting]: value }));
+  };
+
+  const handleInputKeyState = (event) => {
+    setCapsLockOn(event.getModifierState?.('CapsLock') ?? false);
   };
 
   const handleClear = () => {
@@ -323,6 +502,9 @@ function App() {
               value={password}
               onChange={handlePasswordChange}
               autoComplete="new-password"
+              onKeyDown={handleInputKeyState}
+              onKeyUp={handleInputKeyState}
+              onBlur={() => setCapsLockOn(false)}
             />
 
             <button
@@ -336,10 +518,25 @@ function App() {
             </button>
           </div>
 
+          <div className="input-meta-row">
+            <span>{password.length} characters</span>
+            {capsLockOn && <span className="caps-lock-warning">Caps Lock is on</span>}
+          </div>
+
           <div className="password-actions">
             <button type="button" onClick={handleGeneratePassword}>
               <RefreshCw size={18} />
               Generate password
+            </button>
+
+            <button
+              type="button"
+              className={`secondary-button ${showGeneratorSettings ? 'active' : ''}`}
+              onClick={() => setShowGeneratorSettings((current) => !current)}
+              aria-expanded={showGeneratorSettings}
+            >
+              <SlidersHorizontal size={18} />
+              Customize
             </button>
 
             <button
@@ -362,6 +559,73 @@ function App() {
               Clear
             </button>
           </div>
+
+          {showGeneratorSettings && (
+            <div className="generator-panel">
+              <div className="generator-panel-heading">
+                <div>
+                  <p className="section-kicker">Generator controls</p>
+                  <h2>Build your password</h2>
+                </div>
+                <span>{generatorSettings.length} characters</span>
+              </div>
+
+              <label className="length-control" htmlFor="password-length">
+                <span>Length</span>
+                <input
+                  id="password-length"
+                  type="range"
+                  min="8"
+                  max="40"
+                  value={generatorSettings.length}
+                  onChange={(event) =>
+                    updateGeneratorSetting('length', Number(event.target.value))
+                  }
+                />
+              </label>
+
+              <div className="generator-options">
+                {[
+                  ['lowercase', 'Lowercase', 'a-z'],
+                  ['uppercase', 'Uppercase', 'A-Z'],
+                  ['numbers', 'Numbers', '0-9'],
+                  ['symbols', 'Symbols', '#!?'],
+                ].map(([key, label, sample]) => (
+                  <label className="generator-option" key={key}>
+                    <input
+                      type="checkbox"
+                      checked={generatorSettings[key]}
+                      disabled={generatorSettings[key] && enabledGeneratorGroups === 1}
+                      onChange={(event) => updateGeneratorSetting(key, event.target.checked)}
+                    />
+                    <span>
+                      <strong>{label}</strong>
+                      <small>{sample}</small>
+                    </span>
+                  </label>
+                ))}
+
+                <label className="generator-option wide-option">
+                  <input
+                    type="checkbox"
+                    checked={generatorSettings.avoidAmbiguous}
+                    onChange={(event) =>
+                      updateGeneratorSetting('avoidAmbiguous', event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>Avoid ambiguous characters</strong>
+                    <small>Removes characters like O, 0, I, l, and 1</small>
+                  </span>
+                </label>
+              </div>
+
+              <button type="button" className="generate-now-button" onClick={handleGeneratePassword}>
+                <Sparkles size={18} />
+                Generate with these settings
+              </button>
+            </div>
+          )}
         </section>
 
         {password && (
@@ -372,14 +636,14 @@ function App() {
                   <p className="section-kicker">Overall strength</p>
                   <h2>{strength.label}</h2>
                 </div>
-                <span className="score-pill">{score}/5</span>
+                <span className="score-pill">{score}/100</span>
               </div>
 
               <div className="strength-bar-wrapper" aria-hidden="true">
                 <div
                   className="strength-bar"
                   style={{
-                    width: `${(score / 5) * 100}%`,
+                    width: `${score}%`,
                     backgroundColor: strength.color,
                   }}
                 />
@@ -389,7 +653,7 @@ function App() {
                 {STRENGTH_LEVELS.slice(1).map((level, index) => (
                   <span
                     key={level.label}
-                    className={index < score ? 'active' : ''}
+                    className={index < level ? 'active' : ''}
                   />
                 ))}
               </div>
@@ -406,8 +670,8 @@ function App() {
                 </article>
 
                 <article className="metric-card">
-                  <span>Password length</span>
-                  <strong>{password.length} characters</strong>
+                  <span>Unique characters</span>
+                  <strong>{uniqueCharacters} of {password.length}</strong>
                 </article>
               </div>
             </section>
