@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 import sha1 from 'js-sha1';
 import {
@@ -6,9 +6,11 @@ import {
   Clipboard,
   Eye,
   EyeOff,
+  Moon,
   RefreshCw,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   ShieldCheck,
   ShieldAlert,
   Trash2,
@@ -363,6 +365,15 @@ const generatePassword = ({
 };
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem('passmetric-theme');
+
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+
+    return window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
+  });
   const [password, setPassword] = useState('');
   const [breachCount, setBreachCount] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -385,12 +396,48 @@ function App() {
   const feedback = useMemo(() => getFeedback(password), [password]);
   const checklist = useMemo(() => buildChecklist(password), [password]);
   const uniqueCharacters = useMemo(() => new Set(password).size, [password]);
+  const passwordDna = useMemo(
+    () =>
+      [...password].map((character, index) => ({
+        id: `${character}-${index}`,
+        type: /[a-z]/.test(character)
+          ? 'lowercase'
+          : /[A-Z]/.test(character)
+            ? 'uppercase'
+            : /\d/.test(character)
+              ? 'number'
+              : 'symbol',
+      })),
+    [password]
+  );
   const enabledGeneratorGroups = [
     generatorSettings.lowercase,
     generatorSettings.uppercase,
     generatorSettings.numbers,
     generatorSettings.symbols,
   ].filter(Boolean).length;
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem('passmetric-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const updateTheme = () => {
+      setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+    };
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+
+    if (!document.startViewTransition || prefersReducedMotion) {
+      updateTheme();
+      return;
+    }
+
+    document.startViewTransition(updateTheme);
+  };
 
   const handlePasswordChange = (event) => {
     setPassword(event.target.value);
@@ -488,7 +535,22 @@ function App() {
               </p>
             </div>
           </div>
-
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">
+              {theme === 'dark' ? (
+                <Sun key="sun" size={17} />
+              ) : (
+                <Moon key="moon" size={17} />
+              )}
+            </span>
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
         </div>
 
         <section className="password-section">
@@ -673,6 +735,33 @@ function App() {
                   <span>Unique characters</span>
                   <strong>{uniqueCharacters} of {password.length}</strong>
                 </article>
+              </div>
+
+              <div className="password-dna">
+                <div className="dna-heading">
+                  <div>
+                    <p className="section-kicker">Pattern insight</p>
+                    <h2>Password DNA</h2>
+                  </div>
+                  <div className="dna-legend" aria-label="Password DNA legend">
+                    <span className="lowercase">lowercase</span>
+                    <span className="uppercase">uppercase</span>
+                    <span className="number">number</span>
+                    <span className="symbol">symbol</span>
+                  </div>
+                </div>
+                <div
+                  className="dna-strip"
+                  role="img"
+                  aria-label={`Character pattern for a ${password.length}-character password`}
+                >
+                  {passwordDna.map((segment) => (
+                    <span key={segment.id} className={segment.type} />
+                  ))}
+                </div>
+                <p className="dna-note">
+                  A varied rhythm is harder to predict than long blocks of the same type.
+                </p>
               </div>
             </section>
 
