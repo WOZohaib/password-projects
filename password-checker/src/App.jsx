@@ -133,6 +133,8 @@ const getCharacterPoolSize = (password) => {
   return poolSize;
 };
 
+const hasWhitespace = (password) => /\s/.test(password);
+
 const formatDuration = (seconds) => {
   if (!Number.isFinite(seconds)) return 'effectively forever';
   if (seconds < 1) return 'less than a second';
@@ -180,18 +182,16 @@ const analyzePassword = (password) => {
   const rawEntropy =
     length * Math.log2(Math.max(getCharacterPoolSize(password), 1));
 
-  let score = Math.min(52, length * 3.25);
+  // Length contributes smoothly so crossing an arbitrary boundary does not
+  // create a sudden jump in the result.
+  let score = Math.min(48, length * 2.5);
   score += categoryCount * 7;
   score += Math.min(10, uniqueRatio * 12);
-
-  if (length >= 16) score += 6;
-  if (length >= 20) score += 5;
-  if (length >= 24) score += 4;
+  score += Math.min(12, Math.max(0, length - 12) * 0.75);
 
   let penalty = 0;
 
-  if (length < 8) penalty += 32;
-  else if (length < 12) penalty += 14;
+  penalty += Math.max(0, 12 - length) * 2.5;
 
   if (categoryCount === 1) penalty += 16;
   else if (categoryCount === 2) penalty += 7;
@@ -204,6 +204,7 @@ const analyzePassword = (password) => {
 
   if (hasSequentialPattern(password)) penalty += 18;
   if (hasDatePattern(password)) penalty += 10;
+  if (hasWhitespace(password)) penalty += 20;
 
   if (COMMON_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     penalty += 35;
@@ -248,6 +249,10 @@ const getFeedback = (password) => {
 
   if (password.length < 12) {
     feedback.push('Use at least 12 characters.');
+  }
+
+  if (hasWhitespace(password)) {
+    feedback.push('Remove spaces and other whitespace characters.');
   }
 
   if (!/[A-Z]/.test(password)) {
@@ -301,6 +306,7 @@ const getFeedback = (password) => {
 
 const buildChecklist = (password) => [
   { label: 'At least 12 characters', passed: password.length >= 12 },
+  { label: 'Contains no spaces', passed: password.length > 0 && !hasWhitespace(password) },
   { label: 'Contains uppercase letters', passed: /[A-Z]/.test(password) },
   { label: 'Contains lowercase letters', passed: /[a-z]/.test(password) },
   { label: 'Contains numbers', passed: /\d/.test(password) },
@@ -364,6 +370,58 @@ const generatePassword = ({
   return combined.join('');
 };
 
+const getCategoryCount = (value) => [
+  /[a-z]/.test(value),
+  /[A-Z]/.test(value),
+  /\d/.test(value),
+  /[\W_]/.test(value),
+].filter(Boolean).length;
+
+const strengthenPassword = (currentPassword, requestedFragment) => {
+  const cleanCurrent = currentPassword.replace(/\s/g, '');
+  const cleanFragment = requestedFragment.replace(/\s/g, '').slice(0, 24);
+  const base = cleanFragment || cleanCurrent;
+  const additions = [];
+
+  if (!/[a-z]/.test(base)) additions.push(getRandomCharacter(CHARACTER_GROUPS.lowercase));
+  if (!/[A-Z]/.test(base)) additions.push(getRandomCharacter(CHARACTER_GROUPS.uppercase));
+  if (!/\d/.test(base)) additions.push(getRandomCharacter(CHARACTER_GROUPS.numbers));
+  if (!/[\W_]/.test(base)) additions.push(getRandomCharacter(CHARACTER_GROUPS.symbols));
+
+  const allCharacters = Object.values(CHARACTER_GROUPS).join('');
+  const targetLength = Math.max(16, base.length + 4);
+  while (base.length + additions.length < targetLength) {
+    additions.push(getRandomCharacter(allCharacters));
+  }
+
+  const splitIndex = Math.floor(additions.length / 2);
+  const improved = `${additions.slice(0, splitIndex).join('')}${base}${additions
+    .slice(splitIndex)
+    .join('')}`;
+  const previous = analyzePassword(currentPassword);
+  const next = analyzePassword(improved);
+  const changes = [];
+
+  if (hasWhitespace(currentPassword) || hasWhitespace(requestedFragment)) {
+    changes.push('Removed whitespace');
+  }
+  changes.push(
+    cleanFragment
+      ? `Preserved your ${cleanFragment.length}-character fragment`
+      : 'Kept your current password as the core'
+  );
+  if (improved.length > cleanCurrent.length) {
+    changes.push(`Increased length from ${currentPassword.length} to ${improved.length}`);
+  }
+  const addedCategories = getCategoryCount(improved) - getCategoryCount(cleanCurrent);
+  if (addedCategories > 0) {
+    changes.push(`Added ${addedCategories} missing character type${addedCategories === 1 ? '' : 's'}`);
+  }
+  changes.push(`Strength score changed from ${previous.score} to ${next.score}`);
+
+  return { password: improved, changes, previousScore: previous.score, nextScore: next.score };
+};
+
 function App() {
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem('passmetric-theme');
@@ -380,6 +438,10 @@ function App() {
   const [isCheckingBreach, setIsCheckingBreach] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showGeneratorSettings, setShowGeneratorSettings] = useState(false);
+  const [showStrengthener, setShowStrengthener] = useState(false);
+  const [personalFragment, setPersonalFragment] = useState('');
+  const [strengthenSummary, setStrengthenSummary] = useState(null);
+  const [inputNotice, setInputNotice] = useState('');
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [generatorSettings, setGeneratorSettings] = useState({
     length: 18,
@@ -440,13 +502,32 @@ function App() {
   };
 
   const handlePasswordChange = (event) => {
-    setPassword(event.target.value);
+    const enteredPassword = event.target.value;
+    const withoutWhitespace = enteredPassword.replace(/\s/g, '');
+    setPassword(withoutWhitespace);
+    setInputNotice(
+      enteredPassword === withoutWhitespace
+        ? ''
+        : 'Spaces are not allowed and were removed.'
+    );
+    setStrengthenSummary(null);
     setBreachCount(null);
     setCopied(false);
   };
 
   const handleGeneratePassword = () => {
     setPassword(generatePassword(generatorSettings));
+    setBreachCount(null);
+    setCopied(false);
+    setStrengthenSummary(null);
+  };
+
+  const handleStrengthenPassword = () => {
+    if (!password) return;
+    const result = strengthenPassword(password, personalFragment);
+    setPassword(result.password);
+    setStrengthenSummary(result);
+    setInputNotice('');
     setBreachCount(null);
     setCopied(false);
   };
@@ -464,6 +545,8 @@ function App() {
     setPassword('');
     setBreachCount(null);
     setCopied(false);
+    setStrengthenSummary(null);
+    setInputNotice('');
   };
 
   const handleCopy = async () => {
@@ -582,7 +665,11 @@ function App() {
 
           <div className="input-meta-row">
             <span>{password.length} characters</span>
-            {capsLockOn && <span className="caps-lock-warning">Caps Lock is on</span>}
+            {inputNotice ? (
+              <span className="input-warning" role="status">{inputNotice}</span>
+            ) : capsLockOn ? (
+              <span className="caps-lock-warning">Caps Lock is on</span>
+            ) : null}
           </div>
 
           <div className="password-actions">
@@ -599,6 +686,17 @@ function App() {
             >
               <SlidersHorizontal size={18} />
               Customize
+            </button>
+
+            <button
+              type="button"
+              className={`secondary-button ${showStrengthener ? 'active' : ''}`}
+              onClick={() => setShowStrengthener((current) => !current)}
+              disabled={!password}
+              aria-expanded={showStrengthener}
+            >
+              <Sparkles size={18} />
+              Strengthen current
             </button>
 
             <button
@@ -686,6 +784,57 @@ function App() {
                 <Sparkles size={18} />
                 Generate with these settings
               </button>
+            </div>
+          )}
+
+          {showStrengthener && password && (
+            <div className="generator-panel strengthener-panel">
+              <div className="generator-panel-heading">
+                <div>
+                  <p className="section-kicker">Guided upgrade</p>
+                  <h2>Strengthen this password</h2>
+                </div>
+              </div>
+
+              <label className="fragment-field" htmlFor="personal-fragment">
+                <span>Part you want to keep <small>(optional)</small></span>
+                <input
+                  id="personal-fragment"
+                  value={personalFragment}
+                  maxLength="24"
+                  autoComplete="off"
+                  placeholder="A memorable fragment"
+                  onChange={(event) =>
+                    setPersonalFragment(event.target.value.replace(/\s/g, ''))
+                  }
+                />
+              </label>
+              <p className="fragment-note">
+                Use a new memorable fragment, not part of a password you already use elsewhere.
+                Spaces are removed.
+              </p>
+              <button
+                type="button"
+                className="generate-now-button"
+                onClick={handleStrengthenPassword}
+              >
+                <Sparkles size={18} />
+                Create stronger version
+              </button>
+            </div>
+          )}
+
+          {strengthenSummary && (
+            <div className="change-summary" role="status">
+              <div>
+                <p className="section-kicker">Upgrade complete</p>
+                <h2>{strengthenSummary.previousScore} → {strengthenSummary.nextScore}</h2>
+              </div>
+              <ul>
+                {strengthenSummary.changes.map((change) => (
+                  <li key={change}>{change}</li>
+                ))}
+              </ul>
             </div>
           )}
         </section>
