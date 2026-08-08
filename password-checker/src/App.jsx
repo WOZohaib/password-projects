@@ -152,7 +152,6 @@ const formatDuration = (seconds) => {
 const estimateCrackTime = (entropy) => {
   if (!entropy) return 'Instantly';
 
-  // Approximation assuming 10 billion offline guesses per second.
   const guesses = 2 ** entropy;
   const seconds = guesses / 10_000_000_000;
 
@@ -182,8 +181,6 @@ const analyzePassword = (password) => {
   const rawEntropy =
     length * Math.log2(Math.max(getCharacterPoolSize(password), 1));
 
-  // Length contributes smoothly so crossing an arbitrary boundary does not
-  // create a sudden jump in the result.
   let score = Math.min(48, length * 2.5);
   score += categoryCount * 7;
   score += Math.min(10, uniqueRatio * 12);

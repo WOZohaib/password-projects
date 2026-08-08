@@ -1,5 +1,3 @@
-/* App.css */
-
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -696,8 +694,6 @@ button:disabled {
   }
 }
 
-/* Theme system, header controls, and Password DNA */
-
 :root {
   --page-bg: #0f172a;
   --page-glow-blue: rgba(59, 130, 246, 0.18);
@@ -713,6 +709,9 @@ button:disabled {
   --muted: #94a3b8;
   --muted-subtle: #64748b;
   --blue-soft: #bfdbfe;
+  --selected-control-bg: rgba(37, 99, 235, 0.16);
+  --selected-control-border: rgba(96, 165, 250, 0.45);
+  --selected-control-text: #dbeafe;
   --shadow: 0 30px 90px rgba(2, 6, 23, 0.55);
 }
 
@@ -731,6 +730,9 @@ button:disabled {
   --muted: #526176;
   --muted-subtle: #64748b;
   --blue-soft: #1d4ed8;
+  --selected-control-bg: rgba(37, 99, 235, 0.12);
+  --selected-control-border: rgba(37, 99, 235, 0.42);
+  --selected-control-text: #1e3a8a;
   --shadow: 0 30px 80px rgba(51, 65, 85, 0.16);
 }
 
@@ -1065,8 +1067,6 @@ h2,
   }
 }
 
-/* Typography refresh + generator controls */
-
 :root {
   font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -1125,9 +1125,9 @@ h2 {
 }
 
 .password-actions .secondary-button.active {
-  border-color: rgba(96, 165, 250, 0.45);
-  background: rgba(37, 99, 235, 0.16);
-  color: #dbeafe;
+  border-color: var(--selected-control-border);
+  background: var(--selected-control-bg);
+  color: var(--selected-control-text);
 }
 
 .generator-panel {
@@ -1137,7 +1137,7 @@ h2 {
   border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(59, 130, 246, 0.07), transparent 48%),
-    rgba(15, 23, 42, 0.58);
+    var(--surface-input);
   animation: panel-in 0.2s ease-out;
 }
 
@@ -1153,7 +1153,7 @@ h2 {
 }
 
 .generator-panel-heading > span {
-  color: #bfdbfe;
+  color: var(--blue-soft);
   font-family: "DM Mono", ui-monospace, monospace;
   font-size: 12px;
   font-weight: 500;
@@ -1165,7 +1165,7 @@ h2 {
   align-items: center;
   gap: 14px;
   margin-top: 18px;
-  color: #cbd5e1;
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1188,16 +1188,16 @@ h2 {
   align-items: center;
   gap: 11px;
   padding: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(30, 41, 59, 0.48);
+  background: var(--surface-soft);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .generator-option:hover {
   border-color: rgba(96, 165, 250, 0.32);
-  background: rgba(30, 41, 59, 0.72);
+  background: var(--surface-raised);
 }
 
 .generator-option input {
@@ -1217,7 +1217,7 @@ h2 {
 }
 
 .generator-option strong {
-  color: #e2e8f0;
+  color: var(--text-soft);
   font-size: 13px;
 }
 
